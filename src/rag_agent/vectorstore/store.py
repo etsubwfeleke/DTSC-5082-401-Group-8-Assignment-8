@@ -479,4 +479,4 @@ class VectorStoreManager:
         count = len(results["ids"]) if results and results.get("ids") else 0
         self._collection.delete(where={"source": source})
         return count
-        
+    
