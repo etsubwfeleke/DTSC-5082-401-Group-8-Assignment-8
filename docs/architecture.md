@@ -79,26 +79,26 @@ The diagram must show:
 ### Vector Store Layer
 
 - **Database:** ChromaDB — PersistentClient
-- **Local persistence path:** *(what is your CHROMA_DB_PATH?)*
+- **Local persistence path:** ./data/chroma/
 
-- **Embedding model:**
-  *(name and provider — e.g. all-MiniLM-L6-v2 via sentence-transformers)*
+- **Embedding model:** all-MiniLM-L6-v2 via sentence-transformers
 
 - **Why this embedding model:**
-  *(what tradeoffs did you consider? speed vs quality? local vs API?)*
+- *provides a strong balance between performance and efficiency, and generates high-quality semantic embedding, remaining lightweight enough to run
+-  locally without requiring an external API 
 
 - **Similarity metric:**
-  *(cosine or dot product — which did you use and why?)*
+- *Cosine similarity because It measures the angle between embedding vectors, and makes it effective for comparing semantic similarity
+- regardless of vector magnitude.*
 
 - **Retrieval k:**
-  *(how many chunks do you retrieve per query and why?)*
+- *k = 4 because increasing k can improve recall but may reduce answer precision.k as 4 will be sufficient for the language model.*
 
 - **Similarity threshold:**
-  *(what is your minimum score to pass the hallucination guard?
-  how did you arrive at this number?)*
+  **0.7 (or whatever your settings.similarity_threshold is — usually 0.7–0.75). This prevents low-relevance results from being used, acting as a hallucination guard
 
 - **Metadata filtering:**
-  *(can users filter by topic or difficulty? how is this implemented?)*
+  *yes users can filter by topic or difficulty, which is done by metadata filtering, and is implemented using ChromaDB's WHERE clause during query execution.*
 
 ---
 
