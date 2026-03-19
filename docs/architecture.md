@@ -2,20 +2,15 @@
 ## Team: ___________________
 ## Date: ___________________
 ## Members and Roles:
-- Corpus Architect: ___________________
-- Pipeline Engineer: ___________________
+- Corpus Architect: Akhil Sai Yalavarthi
+- Pipeline Engineer: Etsub Feleke
 - UX Lead: ___________________
-- Prompt Engineer: ___________________
+- Prompt Engineer: Sreekanth Taduru
 - QA Lead: ___________________
 
 ---
 
 ## Architecture Diagram
-
-Replace this section with your team's completed flow chart.
-Export from FigJam, Miro, or draw.io and embed as an image,
-or describe the architecture as an ASCII diagram.
-
 The diagram must show:
 - [ ] How a corpus file becomes a chunk
 - [ ] How a chunk becomes an embedding
@@ -23,6 +18,62 @@ The diagram must show:
 - [ ] How a user query flows through LangGraph to a response
 - [ ] Where the hallucination guard sits in the graph
 - [ ] How conversation memory is maintained across turns
+
+                ┌────────────────────────────┐
+                │   Corpus Files (PDFs)      │
+                │   data/context/*.pdf       │
+                └────────────┬───────────────┘
+                             │
+                             ▼
+                  ┌──────────────────────┐
+                  │ DocumentChunker      │
+                  │ (chunker.py)         │
+                  └─────────┬────────────┘
+                            │
+                            ▼
+          ┌────────────────────────────────────┐
+          │ RecursiveCharacterTextSplitter     │
+          │ chunk_size=512, overlap=50         │
+          └─────────┬──────────────────────────┘
+                    │
+                    ▼
+        Duplicate Detection (content hash via
+        VectorStoreManager.generate_chunk_id)
+                    │
+                    ▼
+           ┌────────────────────────────┐
+           │   DocumentChunk Objects    │
+           │ (text + metadata + id)     │
+           └─────────┬──────────────────┘
+                     │
+                     ▼
+           ┌────────────────────────────┐
+           │   Embedding Model          │
+           │ (MiniLM / sentence model)  │
+           └─────────┬──────────────────┘
+                     │
+                     ▼
+           ┌────────────────────────────┐
+           │     ChromaDB               │
+           │ (vector storage)           │
+           └─────────┬──────────────────┘
+                     │
+                     ▼
+                 LangGraph Agent
+                     │
+     ┌───────────────┼────────────────┐
+     ▼               ▼                ▼
+ Query Rewrite   Retrieval     Answer Generation
+                     │
+             Hallucination Guard
+                     │
+                     ▼
+               Final Response
+                     │
+                     ▼
+           Conversation Memory (chat history)
+
+
 
 *(replace this line with your diagram image or ASCII art)*
 
@@ -32,44 +83,49 @@ The diagram must show:
 
 ### Corpus Layer
 
-- **Source files location:** `data/corpus/`
-- **File formats used:**
-  *(which file types did your team ingest — .md, .pdf, or both?)*
-
+- **Source files location:** `data/context/`
+- **File formats used:** PDF file formats are used
 - **Landmark papers ingested:**
-  *(list the papers your team located and ingested, one per line)*
+  *ARTIFICIAL NEURAL NETWORKS AND THEIR APPLICATIONS - Nitin Malik
+   An Overview of Controllable Text Generation via Variational Auto-Encoders - Haoqin Tu, Yitong Li
+   Gradient-based learning applied to Document recognition - Yann LeCun, Leon Bottou
+   Generative Adversarial Nets - Ian J. Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley, Aaron Courville, Yoshua Bengio
+   Long Short-Term memory - Sepp Hochreiter, Jürgen Schmidhuber
+   A DYNAMICAL SYSTEM VIEW ON RECURRENT NEURAL NETWORKS - Minmin Chen, Eldad Haber, Bo Chang, Ed H. Chi
+   Sequence to Sequence Learning with Neural Networks - Ilya Sutskever, Oriol Vinyals, Quoc V. Le *
   -
   -
   -
 
 - **Chunking strategy:**
-  *(what chunk size and overlap did you choose, and why?
-  e.g. 512 characters with 50 overlap — justify this choice)*
+  *Documents are split into chunks of size 512 characters with 50 characters overlapping: 50 tokens prevent concepts that span chunk boundaries, and 512 tokens balance         context richness with retrieval precision.
+  *
 
 - **Metadata schema:**
   *(list every metadata field your chunks carry and explain why each field exists)*
   | Field | Type | Purpose |
   |---|---|---|
-  | topic | string | |
-  | difficulty | string | |
-  | type | string | |
-  | source | string | |
-  | related_topics | list | |
-  | is_bonus | bool | |
+  | topic | string | identifies the neural network topic |
+  | difficulty | string | difficulty level as advanced or intermediate|
+  | type | string | describes content type |
+  | source | string | original PDF file name |
+  | related_topics | list | supports cross-topic retrieval |
+  | is_bonus | bool | True for advanced topics like GAN |
 
 - **Duplicate detection approach:**
-  *(how is the chunk ID generated? why is a content hash more reliable than a filename?)*
+  *Chunk ID is generated using a content hash through the VectorStoreManager.generate_chunk_id() function. This approach is more reliable than filename-
+   based detection because filenames do not guarantee unique content.*
 
 - **Corpus coverage:**
-  - [ ] ANN
-  - [ ] CNN
-  - [ ] RNN
-  - [ ] LSTM
-  - [ ] Seq2Seq
-  - [ ] Autoencoder
-  - [ ] SOM *(bonus)*
-  - [ ] Boltzmann Machine *(bonus)*
-  - [ ] GAN *(bonus)*
+  - [1] ANN
+  - [1] CNN
+  - [1] RNN
+  - [1] LSTM
+  - [1] Seq2Seq
+  - [1] Autoencoder
+  - [0] SOM *(bonus)*
+  - [0] Boltzmann Machine *(bonus)*
+  - [1] GAN *(bonus)*
 
 ---
 
