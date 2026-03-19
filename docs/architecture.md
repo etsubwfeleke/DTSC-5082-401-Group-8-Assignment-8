@@ -84,21 +84,21 @@ The diagram must show:
 - **Embedding model:** all-MiniLM-L6-v2 via sentence-transformers
 
 - **Why this embedding model:**
-- *provides a strong balance between performance and efficiency, and generates high-quality semantic embedding, remaining lightweight enough to run
--  locally without requiring an external API 
+  - *provides a strong balance between performance and efficiency, and generates high-quality semantic embedding, remaining lightweight enough to run
+  -  locally without requiring an external API 
 
 - **Similarity metric:**
-- *Cosine similarity because It measures the angle between embedding vectors, and makes it effective for comparing semantic similarity
-- regardless of vector magnitude.*
+  - *Cosine similarity because It measures the angle between embedding vectors, and makes it effective for comparing semantic similarity
+  - regardless of vector magnitude.*
 
 - **Retrieval k:**
-- *k = 4 because increasing k can improve recall but may reduce answer precision.k as 4 will be sufficient for the language model.*
+  - *k = 4 because increasing k can improve recall but may reduce answer precision.k as 4 will be sufficient for the language model.*
 
 - **Similarity threshold:**
-  **0.7 (or whatever your settings.similarity_threshold is — usually 0.7–0.75). This prevents low-relevance results from being used, acting as a hallucination guard
+  - **0.7 (or whatever your settings.similarity_threshold is — usually 0.7–0.75). This prevents low-relevance results from being used, acting as a hallucination guard
 
 - **Metadata filtering:**
-  *yes users can filter by topic or difficulty, which is done by metadata filtering, and is implemented using ChromaDB's WHERE clause during query execution.*
+  - *yes users can filter by topic or difficulty, which is done by metadata filtering, and is implemented using ChromaDB's WHERE clause during query execution.*
 
 ---
 
