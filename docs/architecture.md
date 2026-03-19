@@ -34,13 +34,13 @@ The diagram must show:
 - **Source files location:** `data/context/`
 - **File formats used:** PDF file formats are used
 - **Landmark papers ingested:**
-  *ARTIFICIAL NEURAL NETWORKS AND THEIR APPLICATIONS - Nitin Malik
+   ARTIFICIAL NEURAL NETWORKS AND THEIR APPLICATIONS - Nitin Malik
    An Overview of Controllable Text Generation via Variational Auto-Encoders - Haoqin Tu, Yitong Li
    Gradient-based learning applied to Document recognition - Yann LeCun, Leon Bottou
    Generative Adversarial Nets - Ian J. Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley, Aaron Courville, Yoshua Bengio
    Long Short-Term memory - Sepp Hochreiter, Jürgen Schmidhuber
    A DYNAMICAL SYSTEM VIEW ON RECURRENT NEURAL NETWORKS - Minmin Chen, Eldad Haber, Bo Chang, Ed H. Chi
-   Sequence to Sequence Learning with Neural Networks - Ilya Sutskever, Oriol Vinyals, Quoc V. Le *
+   Sequence to Sequence Learning with Neural Networks - Ilya Sutskever, Oriol Vinyals, Quoc V. Le 
   -
   -
   -
