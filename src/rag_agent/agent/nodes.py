@@ -64,7 +64,38 @@ def query_rewrite_node(state: AgentState) -> dict:
     #
     # Fallback: if rewriting fails (API error, timeout), return the original
     # query unchanged so the graph continues gracefully
-    raise NotImplementedError
+    settings = get_settings()
+    llm = LLMFactory(settings).create()
+
+    # 1. Extract latest user query
+    original_query = None
+    for msg in reversed(state.messages):
+        if isinstance(msg, HumanMessage):
+            original_query = msg.content
+            break
+
+    if not original_query:
+        return {"original_query": "", "rewritten_query": ""}
+
+    # 2. Build lightweight rewrite prompt
+    rewrite_prompt = (
+        "Rewrite the following query for semantic vector search. "
+        "Make it concise, keyword-focused, and aligned with technical terminology.\n\n"
+        f"Query: {original_query}"
+    )
+
+    try:
+        # 3. Call LLM
+        rewritten = llm.invoke([HumanMessage(content=rewrite_prompt)]).content.strip()
+
+    except Exception:
+        # 4. Fallback
+        rewritten = original_query
+
+    return {
+        "original_query": original_query,
+        "rewritten_query": rewritten
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +135,25 @@ def retrieval_node(state: AgentState) -> dict:
     #    )
     # 3. If result is empty: return {"retrieved_chunks": [], "no_context_found": True}
     # 4. Otherwise: return {"retrieved_chunks": chunks, "no_context_found": False}
-    raise NotImplementedError
+    manager = VectorStoreManager()
+
+    chunks = manager.query(
+        query_text=state.rewritten_query,
+        topic_filter=state.topic_filter,
+        difficulty_filter=state.difficulty_filter
+    )
+
+    if not chunks:
+        return {
+            "retrieved_chunks": [],
+            "no_context_found": True
+        }
+
+    return {
+        "retrieved_chunks": chunks,
+        "no_context_found": False
+    }
+
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +227,67 @@ def generation_node(state: AgentState) -> dict:
     # 5. Construct AgentResponse with answer, sources (list of citations), confidence
     # 6. Append AIMessage to messages
     # 7. Return {"final_response": response, "messages": [new_ai_message]}
-    raise NotImplementedError
+
+    # ---- 1. Build Context String ----
+    context_parts = []
+    sources = []
+
+    for chunk in state.retrieved_chunks:
+        topic = getattr(chunk.metadata, "topic", "unknown")
+        source = getattr(chunk.metadata, "source", "unknown")
+
+        citation = f"{topic} | {source}"
+        sources.append(citation)
+
+        context_parts.append(
+            f"[SOURCE: {citation}]\n{chunk.chunk_text}\n"
+        )
+
+    context_text = "\n".join(context_parts)
+
+    # ---- 2. Confidence Score ----
+    avg_confidence = (
+        sum(chunk.score for chunk in state.retrieved_chunks)
+        / len(state.retrieved_chunks)
+    )
+
+    # ---- 3. Build Messages ----
+    system_msg = SystemMessage(content=SYSTEM_PROMPT)
+    context_msg = SystemMessage(content=f"Context:\n{context_text}")
+
+    # Trim conversation history
+    trimmed_messages = trim_messages(
+        state.messages,
+        max_tokens=settings.max_context_tokens,
+        strategy="last"
+    )
+
+    messages = [
+        system_msg,
+        context_msg,
+        *trimmed_messages,
+        HumanMessage(content=state.original_query)
+    ]
+
+    # ---- 4. Call LLM ----
+    response_text = llm.invoke(messages).content
+
+    # ---- 5. Build AgentResponse ----
+    response = AgentResponse(
+        answer=response_text,
+        sources=list(set(sources)),
+        confidence=avg_confidence,
+        no_context_found=False,
+        rewritten_query=state.rewritten_query,
+    )
+
+    # ---- 6. Append AI Message ----
+    new_ai_message = AIMessage(content=response_text)
+
+    return {
+        "final_response": response,
+        "messages": [new_ai_message]
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -217,4 +326,13 @@ def should_retry_retrieval(state: AgentState) -> str:
     # TODO: implement
     # Simple version: if no_context_found → "end", else → "generate"
     # Advanced version: track retry count, allow one retry with broader query
-    raise NotImplementedError
+    retry_count = getattr(state, "retry_count", 0)
+
+    if state.no_context_found and retry_count < 1:
+        state.retry_count = retry_count + 1
+        return "rewrite"
+
+    if state.no_context_found:
+        return "end"
+
+    return "generate"

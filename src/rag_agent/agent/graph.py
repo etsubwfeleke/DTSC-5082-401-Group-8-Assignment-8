@@ -110,7 +110,34 @@ generation_node  [END]   ← hallucination guard fires here
         # 5. graph.add_edge("generation", END)
         #
         # 6. return graph.compile(checkpointer=self._checkpointer)
-        raise NotImplementedError
+        # 1. Initialize graph with state schema
+        graph = StateGraph(AgentState)
+
+        # 2. Add nodes
+        graph.add_node("query_rewrite", query_rewrite_node)
+        graph.add_node("retrieval", retrieval_node)
+        graph.add_node("generation", generation_node)
+
+        # 3. Add edges (main flow)
+        graph.add_edge(START, "query_rewrite")
+        graph.add_edge("query_rewrite", "retrieval")
+
+        # 4. Conditional routing after retrieval
+        graph.add_conditional_edges(
+            "retrieval",
+            should_retry_retrieval,
+            {
+                "generate": "generation",
+                "end": END, 
+                "rewrite": "query_rewrite" 
+            }
+        )
+
+        # 5. Final edge
+        graph.add_edge("generation", END)
+
+        # 6. Compile with memory checkpointer
+        return graph.compile(checkpointer=self._checkpointer)
 
 
 @lru_cache(maxsize=1)
