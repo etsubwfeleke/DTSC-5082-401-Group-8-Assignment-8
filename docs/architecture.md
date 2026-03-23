@@ -4,7 +4,7 @@
 ## Members and Roles:
 - Corpus Architect: Akhil Sai Yalavarthi
 - Pipeline Engineer: Etsub Feleke
-- UX Lead: ___________________
+- UX Lead: Hoda Malak
 - Prompt Engineer: Sreekanth Taduru
 - QA Lead: ___________________
 
@@ -110,9 +110,9 @@ The diagram must show:
   *(describe what each node does in one sentence)*
   | Node | Responsibility |
   |---|---|
-  | query_rewrite_node | |
-  | retrieval_node | |
-  | generation_node | |
+  | query_rewrite_node | This node rewrites the user's query to improve retrieval accuracy. |
+  | retrieval_node | This node fetches relevant chunks from the vector store based on the rewritten query. |
+  | generation_node | This node generates a response based on the retrieved chunks and the original query. |
 
 - **Conditional edges:**
   *(what condition triggers each edge? what happens when no context is found?)*
