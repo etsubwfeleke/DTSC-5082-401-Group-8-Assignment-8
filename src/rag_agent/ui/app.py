@@ -96,54 +96,63 @@ def initialise_session_state() -> None:
 # ---------------------------------------------------------------------------
 # Ingestion Panel (Sidebar)
 # ---------------------------------------------------------------------------
+    def render_ingestion_panel(
+        store: VectorStoreManager, 
+        chunker: DocumentChunker
+        ) -> None:
+        """
+        Render the document ingestion panel in the sidebar.
 
+        Allows multi-file upload of PDF and Markdown files. Displays
+        ingestion results (chunks added, duplicates skipped, errors).
+        Updates the ingested documents list after successful ingestion.
 
-def render_ingestion_panel(
-    store: VectorStoreManager,
-    chunker: DocumentChunker,
-) -> None:
-    """
-    Render the document ingestion panel in the sidebar.
+        Parameters
+        ----------
+        store : VectorStoreManager
+        chunker : DocumentChunker
+        """
+        st.sidebar.header("📂 Corpus Ingestion")
 
-    Allows multi-file upload of PDF and Markdown files. Displays
-    ingestion results (chunks added, duplicates skipped, errors).
-    Updates the ingested documents list after successful ingestion.
+        # 1. File Uploader
+        uploaded_files = st.sidebar.file_uploader(
+            "Upload study materials",
+            type=["pdf", "md"],
+            accept_multiple_files=True
+        )
 
-    Parameters
-    ----------
-    store : VectorStoreManager
-    chunker : DocumentChunker
-    """
-    st.sidebar.header("📂 Corpus Ingestion")
+        # 2 & 3. Ingest Logic
+        if st.sidebar.button("🚀 Ingest Documents", disabled=not uploaded_files):
+            all_chunks = []
+            with st.sidebar.status("Processing...", expanded=True) as status:
+                for uploaded_file in uploaded_files:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp_file:
+                        tmp_file.write(uploaded_file.getvalue())
+                        tmp_path = Path(tmp_file.name)
+                    chunks = chunker.chunk_file(tmp_path)
+                    all_chunks.extend(chunks)
 
-    # TODO: implement
-    # 1. st.sidebar.file_uploader(
-    #        "Upload study materials",
-    #        type=["pdf", "md"],
-    #        accept_multiple_files=True
-    #    )
-    #
-    # 2. "Ingest Documents" button — only enabled when files are selected
-    #
-    # 3. On button click:
-    #    a. Save uploaded files to a temp directory
-    #    b. chunker.chunk_files(file_paths)
-    #    c. store.ingest(chunks) → IngestionResult
-    #    d. Display result: st.success / st.warning / st.error
-    #       Show: "{result.ingested} chunks added, {result.skipped} duplicates skipped"
-    #    e. Refresh ingested documents list in session_state
-    #
-    # 4. Render ingested documents list below the uploader
-    #    For each document: show source name, topic, chunk count
-    #    Add a small "🗑 Remove" button per document that calls store.delete_document()
+                if all_chunks:
+                    result = store.ingest(all_chunks)
+                    st.sidebar.success(f"Added {result.ingested} chunks!")
+                    st.session_state.ingested_documents = store.get_collection_stats()["sources"]
+                    status.update(label="Done!", state="complete")
 
-    st.sidebar.info("Upload .pdf or .md files to populate the corpus.")
+        # 4. Document List
+        st.sidebar.markdown("---")
+        stats = store.get_collection_stats()
+        for source in stats["sources"]:
+            c1, c2 = st.sidebar.columns([4, 1])
+            c1.caption(source)
+            if c2.button("🗑️", key=source):
+                store.delete_document(source)
+                st.rerun()
 
+        st.sidebar.info("Upload .pdf or .md files to populate the corpus.")
 
 def render_corpus_stats(store: VectorStoreManager) -> None:
     """
     Render a compact corpus health summary in the sidebar.
-
     Shows total chunks, topics covered, and whether bonus topics
     are present. Used during Hour 3 to demonstrate corpus completeness.
 
@@ -151,21 +160,31 @@ def render_corpus_stats(store: VectorStoreManager) -> None:
     ----------
     store : VectorStoreManager
     """
-    # TODO: implement
-    # stats = store.get_collection_stats()
-    # st.sidebar.metric("Total Chunks", stats["total_chunks"])
-    # st.sidebar.write("Topics:", ", ".join(stats["topics"]))
-    # if stats["bonus_topics_present"]:
-    #     st.sidebar.success("✅ Bonus topics present")
-    # else:
-    #     st.sidebar.warning("⚠️ No bonus topics yet")
-    pass
+    st.sidebar.markdown("---") # Adds a visual divider line
+    st.sidebar.subheader("📊 Corpus Health")
 
+    # 1. Get stats from the backend
+    stats = store.get_collection_stats()
+
+    # 2. Display the chunk count
+    st.sidebar.metric("Total Chunks", stats["total_chunks"])
+
+    # 3. Display the topics covered
+    topics_list = stats.get("topics", [])
+    if topics_list:
+        st.sidebar.write(f"**Topics:** {', '.join(topics_list)}")
+    else:
+        st.sidebar.write("**Topics:** None ingested")
+
+    # 4. Bonus topic indicator
+    if stats.get("bonus_topics_present"):
+        st.sidebar.success("✅ Bonus topics available")
+    else:
+        st.sidebar.info("💡 Add GAN or SOM for bonus points")
 
 # ---------------------------------------------------------------------------
 # Document Viewer Panel (Centre)
 # ---------------------------------------------------------------------------
-
 
 def render_document_viewer(store: VectorStoreManager) -> None:
     """
@@ -180,86 +199,146 @@ def render_document_viewer(store: VectorStoreManager) -> None:
     """
     st.subheader("📄 Document Viewer")
 
-    # TODO: implement
-    # 1. If no documents ingested: show placeholder message
-    #
-    # 2. st.selectbox("Select document", options=[doc["source"] for doc in docs])
-    #    Store selection in st.session_state["selected_document"]
-    #
-    # 3. On selection change: store.get_document_chunks(selected_source)
-    #
-    # 4. Render chunks in a scrollable container (st.container with fixed height)
-    #    For each chunk:
-    #    - Show metadata badge: topic | difficulty | type
-    #    - Show chunk text
-    #    - Show similarity score if this chunk was used in last response
-    #
-    # 5. Display chunk count and coverage summary below viewer
+    # 1. Fetch current sources
+    stats = store.get_collection_stats()
+    docs = stats.get("sources", [])
 
-    st.info("Ingest documents using the sidebar to view content here.")
+    if not docs:
+        st.info("Ingest documents using the sidebar to view content here.")
+        return
 
+    # 2. Selection Menu
+    selected_source = st.selectbox("Select document", options=docs)
+
+    # 3 & 4. Display Chunks in a scrollable container
+    with st.container(height=600, border=True):
+        # Retrieve chunks for this specific document
+        results = store._collection.get(
+            where={"source": selected_source},
+            include=["documents", "metadatas"]
+        )
+        
+        if results["documents"]:
+            for i in range(len(results["documents"])):
+                topic = results["metadatas"][i].get("topic", "N/A")
+                diff = results["metadatas"][i].get("difficulty", "N/A")
+                
+                # We use a header style for each chunk
+                st.markdown(f"**Chunk {i+1}** :blue[[{topic} | {diff}]]")
+                st.text_area(
+                    label=f"Content_{i}", 
+                    value=results["documents"][i], 
+                    height=150, 
+                    disabled=True,
+                    label_visibility="collapsed"
+                )
+                st.divider()
+        else:
+            st.warning("No chunks found for this document.")
+
+    # 5. Coverage Summary
+    st.caption(f"Viewing {len(results['documents'])} chunks from {selected_source}")
 
 # ---------------------------------------------------------------------------
 # Chat Interface Panel (Right)
 # ---------------------------------------------------------------------------
 
-
 def render_chat_interface(graph) -> None:
     """
     Render the chat interface in the right column.
 
-    Supports multi-turn conversation with the LangGraph agent.
-    Displays source citations with every response.
-    Shows a clear "no relevant context" indicator when the
-    hallucination guard fires.
-
-    Parameters
-    ----------
-    graph : CompiledStateGraph
-        The compiled LangGraph agent from get_compiled_graph().
+    Supports multi-turn conversation with the LangGraph agent using streaming.
+    Displays source citations and hallucination guards.
     """
+    from langchain_core.messages import HumanMessage
+    import streamlit as st
+
     st.subheader("💬 Interview Prep Chat")
 
-    # Filters
+    # 1. Topic & Difficulty Filters
+    # These are passed to the graph to narrow the vector search scope
     col_topic, col_diff = st.columns(2)
     with col_topic:
-        # TODO: st.selectbox for topic filter
-        pass
+        topic = st.selectbox(
+            "Focus Topic", 
+            ["All", "ANN", "CNN", "RNN", "LSTM", "Seq2Seq", "Autoencoder", "GAN", "SOM"],
+            help="Filter retrieval to a specific deep learning architecture."
+        )
     with col_diff:
-        # TODO: st.selectbox for difficulty filter
-        pass
+        difficulty = st.selectbox(
+            "Difficulty Level", 
+            ["All", "beginner", "intermediate", "advanced"],
+            help="Match the question complexity to your current level."
+        )
 
-    # Chat history display
-    chat_container = st.container(height=400)
+    # 2. Chat history display
+    # We render this inside a scrollable container
+    chat_container = st.container(height=500)
     with chat_container:
         for message in st.session_state.chat_history:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
+                
+                # Render Citations if they exist
                 if message.get("sources"):
-                    with st.expander("📎 Sources"):
+                    with st.expander("📎 View Source Citations"):
                         for source in message["sources"]:
                             st.caption(source)
+                
+                # Render Hallucination Guard Warning
                 if message.get("no_context_found"):
-                    st.warning("⚠️ No relevant content found in corpus.")
+                    st.warning("⚠️ This response was generated without direct corpus context.")
 
-    # Chat input
-    # TODO: implement
-    # 1. query = st.chat_input("Ask about a deep learning topic...")
-    #
-    # 2. On submit:
-    #    a. Append user message to chat_history
-    #    b. Display user message immediately (st.rerun or direct render)
-    #    c. Build LangGraph input:
-    #       {"messages": [HumanMessage(content=query)]}
-    #    d. config = {"configurable": {"thread_id": st.session_state.thread_id}}
-    #    e. result = graph.invoke(input, config=config)
-    #    f. response = result["final_response"]
-    #    g. Append assistant message with answer, sources, no_context_found flag
-    #
-    # STRETCH GOAL — streaming:
-    # Replace graph.invoke with graph.stream() and use st.write_stream()
-    # to display tokens as they arrive. Significant "wow factor" in Hour 3.
+    # 3. Chat Input & Agent Logic
+    if query := st.chat_input("Ask about a deep learning topic..."):
+        
+        # a. Append user message to chat_history
+        st.session_state.chat_history.append({"role": "user", "content": query})
+        
+        # b. Display user message immediately 
+        # (This happens automatically on the next rerun, but we proceed to generate the AI response now)
 
+        # c. Build LangGraph input
+        inputs = {
+            "messages": [HumanMessage(content=query)],
+            "topic_filter": None if topic == "All" else topic,
+            "difficulty_filter": None if difficulty == "All" else difficulty
+        }
+        
+        # d. Configuration for conversation memory (thread_id)
+        config = {"configurable": {"thread_id": st.session_state.thread_id}}
+
+        # --- STRETCH GOAL: STREAMING AI RESPONSE ---
+        with st.chat_message("assistant"):
+            response_placeholder = st.empty()  # Container for the "typing" effect
+            full_response_text = ""
+            final_response_obj = None
+
+            # e. Execute graph.stream to get the "Wow Factor"
+            with st.spinner("Searching corpus..."):
+                for event in graph.stream(inputs, config=config, stream_mode="values"):
+                    # 2f. Extract the final_response from the graph state
+                    if "final_response" in event and event["final_response"]:
+                        final_response_obj = event["final_response"]
+                        full_response_text = final_response_obj.answer
+                        
+                        # Update the UI in real-time with a cursor
+                        response_placeholder.markdown(full_response_text + "▌")
+            
+            # Finalize the markdown without the cursor
+            response_placeholder.markdown(full_response_text)
+
+            # g. Append assistant message with metadata to session history
+            if final_response_obj:
+                st.session_state.chat_history.append({
+                    "role": "assistant", 
+                    "content": full_response_text,
+                    "sources": final_response_obj.sources,
+                    "no_context_found": final_response_obj.no_context_found
+                })
+        
+        # Force a rerun to sync the chat container with the new history
+        st.rerun()
 
 # ---------------------------------------------------------------------------
 # Main Application
