@@ -18,8 +18,15 @@ from functools import lru_cache
 from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from langchain_groq import ChatGroq
+from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 # ---------------------------------------------------------------------------
 # Enumerations
 # ---------------------------------------------------------------------------
@@ -176,16 +183,15 @@ class LLMFactory:
         inference for significantly lower latency than GPU-based inference.
         """
         # TODO: implement using langchain_groq.ChatGroq
-        from langchain_groq import ChatGroq
-
-        if not self._settings.groq_api_key:
-            raise EnvironmentError("GROQ_API_KEY is required for Groq provider")
-
-        return ChatGroq(
-            api_key=self._settings.groq_api_key,
-            model=self._settings.groq_model,
-        )
         
+        if not self._settings.groq_api_key:
+            raise EnvironmentError("GROQ_API_KEY is required for Groq provider.")
+        return ChatGroq(
+            model=self._settings.groq_model,
+            api_key=self._settings.groq_api_key,
+            temperature=0.0, 
+        )
+
 
     def _create_ollama(self) -> BaseChatModel:
         """
@@ -198,13 +204,14 @@ class LLMFactory:
         concerns and removes API cost and latency entirely.
         """
         # TODO: implement using langchain_ollama.ChatOllama
-        from langchain_ollama import ChatOllama
-
+        if not self._settings.ollama_base_url:
+            raise EnvironmentError("OLLAMA_BASE_URL is required for Ollama provider.")
         return ChatOllama(
-            base_url=self._settings.ollama_base_url,
             model=self._settings.ollama_model,
+            base_url=self._settings.ollama_base_url,
+            temperature=0.0, 
         )
-        
+
 
     def _create_lmstudio(self) -> BaseChatModel:
         """
@@ -221,13 +228,14 @@ class LLMFactory:
         code changes — just a base_url swap.
         """
         # TODO: implement using langchain_openai.ChatOpenAI with base_url override
-        from langchain_openai import ChatOpenAI
-
+        if not self._settings.lmstudio_base_url:
+            raise EnvironmentError("LMSTUDIO_BASE_URL is required for LM Studio provider.")
+        if not self._settings.lmstudio_model:
+            raise EnvironmentError("LMSTUDIO_MODEL is required for LM Studio provider.")
         return ChatOpenAI(
-            base_url=self._settings.lmstudio_base_url,
             model=self._settings.lmstudio_model,
-            api_key="not-needed",
-        )
+            base_url=self._settings.lmstudio_base_url,
+            temperature=0.0,)
 
 
 # ---------------------------------------------------------------------------
@@ -287,11 +295,9 @@ class EmbeddingFactory:
         never leaves the machine — important for proprietary datasets.
         """
         # TODO: implement using langchain_community.embeddings.HuggingFaceEmbeddings
-        from langchain_community.embeddings import HuggingFaceEmbeddings
-
-        return HuggingFaceEmbeddings(
-            model_name=self._settings.embedding_model
-        )
+        if not self._settings.embedding_model:
+            raise EnvironmentError("EMBEDDING_MODEL is required for local embedding provider.")
+        return HuggingFaceEmbeddings(model_name=self._settings.embedding_model)
 
     def _create_openai(self):
         """
@@ -301,8 +307,10 @@ class EmbeddingFactory:
         but incurs API cost per embedding call.
         """
         # TODO: implement using langchain_openai.OpenAIEmbeddings
-        from langchain_openai import OpenAIEmbeddings
-
+        if not self._settings.openai_api_key:
+            raise EnvironmentError("OPENAI_API_KEY is required for OpenAI embedding provider.")
         return OpenAIEmbeddings(
-            model="text-embedding-3-small"
+            model=self._settings.embedding_model,
+            openai_api_key=self._settings.openai_api_key
         )
+

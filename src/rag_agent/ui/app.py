@@ -22,6 +22,7 @@ PEP 8 | OOP | Single Responsibility
 from __future__ import annotations
 
 from pathlib import Path
+import tempfile
 
 import streamlit as st
 
@@ -96,59 +97,62 @@ def initialise_session_state() -> None:
 # ---------------------------------------------------------------------------
 # Ingestion Panel (Sidebar)
 # ---------------------------------------------------------------------------
-    def render_ingestion_panel(
-        store: VectorStoreManager, 
-        chunker: DocumentChunker
-        ) -> None:
-        """
-        Render the document ingestion panel in the sidebar.
+def render_ingestion_panel(
+    store: VectorStoreManager, 
+    chunker: DocumentChunker
+    ) -> None:
+    """
+    Render the document ingestion panel in the sidebar.
 
-        Allows multi-file upload of PDF and Markdown files. Displays
-        ingestion results (chunks added, duplicates skipped, errors).
-        Updates the ingested documents list after successful ingestion.
+    Allows multi-file upload of PDF and Markdown files. Displays
+    ingestion results (chunks added, duplicates skipped, errors).
+    Updates the ingested documents list after successful ingestion.
 
-        Parameters
-        ----------
-        store : VectorStoreManager
-        chunker : DocumentChunker
-        """
-        st.sidebar.header("📂 Corpus Ingestion")
+    Parameters
+    ----------
+    store : VectorStoreManager
+    chunker : DocumentChunker
+    """
+    st.sidebar.header("📂 Corpus Ingestion")
 
-        # 1. File Uploader
-        uploaded_files = st.sidebar.file_uploader(
-            "Upload study materials",
-            type=["pdf", "md"],
-            accept_multiple_files=True
-        )
+    # 1. File Uploader
+    uploaded_files = st.sidebar.file_uploader(
+        "Upload study materials",
+        type=["pdf", "md"],
+        accept_multiple_files=True
+    )
 
-        # 2 & 3. Ingest Logic
-        if st.sidebar.button("🚀 Ingest Documents", disabled=not uploaded_files):
-            all_chunks = []
-            with st.sidebar.status("Processing...", expanded=True) as status:
-                for uploaded_file in uploaded_files:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp_file:
-                        tmp_file.write(uploaded_file.getvalue())
-                        tmp_path = Path(tmp_file.name)
-                    chunks = chunker.chunk_file(tmp_path)
-                    all_chunks.extend(chunks)
+    # 2 & 3. Ingest Logic
+    if st.sidebar.button("🚀 Ingest Documents", disabled=not uploaded_files):
+        all_chunks = []
+        with st.sidebar.status("Processing...", expanded=True) as status:
+            for uploaded_file in uploaded_files:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp_file:
+                    tmp_file.write(uploaded_file.getvalue())
+                    tmp_path = Path(tmp_file.name)
+                chunks = chunker.chunk_file(
+                    tmp_path,
+                    metadata_overrides={"source": uploaded_file.name},
+                )
+                all_chunks.extend(chunks)
 
-                if all_chunks:
-                    result = store.ingest(all_chunks)
-                    st.sidebar.success(f"Added {result.ingested} chunks!")
-                    st.session_state.ingested_documents = store.get_collection_stats()["sources"]
-                    status.update(label="Done!", state="complete")
+            if all_chunks:
+                result = store.ingest(all_chunks)
+                st.sidebar.success(f"Added {result.ingested} chunks!")
+                st.session_state.ingested_documents = store.get_collection_stats()["sources"]
+                status.update(label="Done!", state="complete")
 
-        # 4. Document List
-        st.sidebar.markdown("---")
-        stats = store.get_collection_stats()
-        for source in stats["sources"]:
-            c1, c2 = st.sidebar.columns([4, 1])
-            c1.caption(source)
-            if c2.button("🗑️", key=source):
-                store.delete_document(source)
-                st.rerun()
+    # 4. Document List
+    st.sidebar.markdown("---")
+    stats = store.get_collection_stats()
+    for source in stats["sources"]:
+        c1, c2 = st.sidebar.columns([4, 1])
+        c1.caption(source)
+        if c2.button("🗑️", key=source):
+            store.delete_document(source)
+            st.rerun()
 
-        st.sidebar.info("Upload .pdf or .md files to populate the corpus.")
+    st.sidebar.info("Upload .pdf or .md files to populate the corpus.")
 
 def render_corpus_stats(store: VectorStoreManager) -> None:
     """
@@ -315,7 +319,7 @@ def render_chat_interface(graph) -> None:
             final_response_obj = None
 
             # e. Execute graph.stream to get the "Wow Factor"
-            with st.spinner("Searching corpus..."):
+            with st.spinner("Searching corpus...:)"):
                 for event in graph.stream(inputs, config=config, stream_mode="values"):
                     # 2f. Extract the final_response from the graph state
                     if "final_response" in event and event["final_response"]:
