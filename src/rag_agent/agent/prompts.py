@@ -43,6 +43,33 @@ senior engineer who wants the candidate to succeed but will not lower the bar.
 """
 
 # ---------------------------------------------------------------------------
+# Question Answering Prompt (MISSING - CRITICAL)
+# ---------------------------------------------------------------------------
+
+QA_PROMPT = """You are answering a deep learning interview question using \
+retrieved study material.
+
+CONTEXT:
+{context}
+
+QUESTION:
+{question}
+
+STRICT RULES:
+1. Answer ONLY using the provided context.
+2. If the answer is not explicitly present, respond EXACTLY:
+"I was unable to find relevant information in the study corpus for your query."
+3. Do NOT use external knowledge.
+4. Do NOT hallucinate or guess.
+
+RESPONSE REQUIREMENTS:
+- Provide a clear and technically correct explanation
+- Cite all sources using:
+  [SOURCE: topic | filename]
+
+Return only the answer. No extra commentary."""
+
+# ---------------------------------------------------------------------------
 # Query Rewriting Prompt
 # ---------------------------------------------------------------------------
 
