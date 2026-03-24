@@ -94,6 +94,19 @@ class VectorStoreManager:
         f"Items in collection: {self._collection.count()}"
         )
 
+    def _raise_dimension_mismatch(self, error: Exception) -> None:
+        """Raise a clear runtime error when collection/vector dimensions differ."""
+        raise RuntimeError(
+            "Chroma collection embedding dimension does not match the active "
+            "embedding model. This usually happens when the same collection was "
+            "previously populated by a different embedding backend (e.g., test "
+            "fake embeddings vs sentence-transformers). "
+            f"Collection='{self._settings.chroma_collection_name}', "
+            f"DB path='{self._settings.chroma_db_path}'. "
+            "Fix: delete/reset this collection or set a new CHROMA_COLLECTION_NAME, "
+            "then re-ingest documents."
+        ) from error
+
     # -----------------------------------------------------------------------
     # Duplicate Detection
     # -----------------------------------------------------------------------
@@ -195,11 +208,10 @@ class VectorStoreManager:
         #   - result.ingested += 1
         # Log summary and return result
         result = IngestionResult()
-
         batch_size = 100
 
         for i in range(0, len(chunks), batch_size):
-            batch = chunks[i:i+batch_size]
+            batch = chunks[i:i + batch_size]
             non_duplicate_chunks = []
 
             for chunk in batch:
@@ -210,9 +222,7 @@ class VectorStoreManager:
                         non_duplicate_chunks.append(chunk)
                 except Exception as e:
                     logger.error(f"Error checking duplicate for chunk {chunk.chunk_id}: {e}")
-                    result.errors.append(
-                        f"duplicate_check_failed:{chunk.chunk_id}:{e}"
-                    )
+                    result.errors.append(f"duplicate_check_failed:{chunk.chunk_id}:{e}")
 
             if not non_duplicate_chunks:
                 continue
@@ -224,21 +234,22 @@ class VectorStoreManager:
 
                 embeddings = self._embeddings.embed_documents(texts)
 
-                self._collection.upsert(
+                self._collection.upsert(        # ← inside try
                     ids=ids,
                     embeddings=embeddings,
                     documents=texts,
                     metadatas=metadatas
                 )
 
-                result.ingested += len(non_duplicate_chunks)
+                result.ingested += len(non_duplicate_chunks)  # ← inside try
+
+            except chromadb.errors.InvalidArgumentError as e:
+                self._raise_dimension_mismatch(e)
 
             except Exception as e:
                 logger.error(f"Batch ingestion error: {e}")
                 for chunk in non_duplicate_chunks:
-                    result.errors.append(
-                        f"batch_ingestion_failed:{chunk.chunk_id}:{e}"
-                    )
+                    result.errors.append(f"batch_ingestion_failed:{chunk.chunk_id}:{e}")
 
         logger.info(
             f"Ingestion complete | Ingested: {result.ingested}, "
@@ -246,7 +257,7 @@ class VectorStoreManager:
         )
 
         return result
-        
+                
 
     # -----------------------------------------------------------------------
     # Retrieval
@@ -315,12 +326,15 @@ class VectorStoreManager:
 
         query_embedding = self._embeddings.embed_query(query_text)
 
-        results = self._collection.query(
-            query_embeddings=[query_embedding],
-            n_results=k,
-            where=where_filter,
-            include=["documents", "metadatas", "distances"]
-        )
+        try:
+            results = self._collection.query(
+                query_embeddings=[query_embedding],
+                n_results=k,
+                where=where_filter,
+                include=["documents", "metadatas", "distances"]
+            )
+        except chromadb.errors.InvalidArgumentError as e:
+            self._raise_dimension_mismatch(e)
 
         retrieved_chunks = []
 

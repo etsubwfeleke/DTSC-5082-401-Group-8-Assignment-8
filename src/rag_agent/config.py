@@ -23,7 +23,10 @@ from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 # ---------------------------------------------------------------------------
 # Enumerations
 # ---------------------------------------------------------------------------

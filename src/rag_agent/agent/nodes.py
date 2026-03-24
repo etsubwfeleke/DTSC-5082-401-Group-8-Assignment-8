@@ -16,11 +16,21 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, trim
 
 from rag_agent.agent.prompts import (
     QUESTION_GENERATION_PROMPT,
+    QUERY_REWRITE_PROMPT, 
     SYSTEM_PROMPT,
 )
 from rag_agent.agent.state import AgentResponse, AgentState, RetrievedChunk
 from rag_agent.config import LLMFactory, get_settings
 from rag_agent.vectorstore.store import VectorStoreManager
+
+from functools import lru_cache
+
+
+def _state_get(state: AgentState, key: str, default=None):
+    """Read a field from either dict-like or attribute-style graph state."""
+    if isinstance(state, dict):
+        return state.get(key, default)
+    return getattr(state, key, default)
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +79,8 @@ def query_rewrite_node(state: AgentState) -> dict:
 
     # 1. Extract latest user query
     original_query = None
-    for msg in reversed(state.messages):
+    messages = _state_get(state, "messages", []) or []
+    for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
             original_query = msg.content
             break
@@ -77,12 +88,8 @@ def query_rewrite_node(state: AgentState) -> dict:
     if not original_query:
         return {"original_query": "", "rewritten_query": ""}
 
-    # 2. Build lightweight rewrite prompt
-    rewrite_prompt = (
-        "Rewrite the following query for semantic vector search. "
-        "Make it concise, keyword-focused, and aligned with technical terminology.\n\n"
-        f"Query: {original_query}"
-    )
+    # 2. Build rewrite prompt
+    rewrite_prompt = QUERY_REWRITE_PROMPT.format(original_query=original_query)
 
     try:
         # 3. Call LLM
@@ -102,6 +109,23 @@ def query_rewrite_node(state: AgentState) -> dict:
 # Node: Retriever
 # ---------------------------------------------------------------------------
 
+
+@lru_cache(maxsize=1)
+def _get_store() -> VectorStoreManager:
+        """
+        Get a cached instance of VectorStoreManager.
+    
+        VectorStoreManager initialization can be expensive due to loading
+        the ChromaDB collection and embedding model. Caching it ensures
+        we reuse the same instance across multiple retrievals, improving
+        performance.
+    
+        Returns
+        -------
+        VectorStoreManager
+            A cached instance of the vector store manager.
+        """
+        return VectorStoreManager()
 
 def retrieval_node(state: AgentState) -> dict:
     """
@@ -138,9 +162,9 @@ def retrieval_node(state: AgentState) -> dict:
     manager = VectorStoreManager()
 
     chunks = manager.query(
-        query_text=state.rewritten_query,
-        topic_filter=state.topic_filter,
-        difficulty_filter=state.difficulty_filter
+        query_text=_state_get(state, "rewritten_query", ""),
+        topic_filter=_state_get(state, "topic_filter"),
+        difficulty_filter=_state_get(state, "difficulty_filter"),
     )
 
     if not chunks:
@@ -194,7 +218,8 @@ def generation_node(state: AgentState) -> dict:
     llm = LLMFactory(settings).create()
 
     # ---- Hallucination Guard -----------------------------------------------
-    if state.no_context_found:
+    no_context_found = _state_get(state, "no_context_found", False)
+    if no_context_found:
         no_context_message = (
             "I was unable to find relevant information in the corpus for your query. "
             "This may mean the topic is not yet covered in the study material, or "
@@ -206,7 +231,7 @@ def generation_node(state: AgentState) -> dict:
             sources=[],
             confidence=0.0,
             no_context_found=True,
-            rewritten_query=state.rewritten_query,
+            rewritten_query=_state_get(state, "rewritten_query", ""),
         )
         return {
             "final_response": response,
@@ -232,7 +257,9 @@ def generation_node(state: AgentState) -> dict:
     context_parts = []
     sources = []
 
-    for chunk in state.retrieved_chunks:
+    retrieved_chunks = _state_get(state, "retrieved_chunks", []) or []
+
+    for chunk in retrieved_chunks:
         topic = getattr(chunk.metadata, "topic", "unknown")
         source = getattr(chunk.metadata, "source", "unknown")
 
@@ -247,8 +274,8 @@ def generation_node(state: AgentState) -> dict:
 
     # ---- 2. Confidence Score ----
     avg_confidence = (
-        sum(chunk.score for chunk in state.retrieved_chunks)
-        / len(state.retrieved_chunks)
+        sum(chunk.score for chunk in retrieved_chunks)
+        / len(retrieved_chunks)
     )
 
     # ---- 3. Build Messages ----
@@ -257,16 +284,17 @@ def generation_node(state: AgentState) -> dict:
 
     # Trim conversation history
     trimmed_messages = trim_messages(
-        state.messages,
+        _state_get(state, "messages", []) or [],
         max_tokens=settings.max_context_tokens,
-        strategy="last"
+        token_counter=llm, 
+        strategy="last", 
     )
 
     messages = [
         system_msg,
         context_msg,
         *trimmed_messages,
-        HumanMessage(content=state.original_query)
+        HumanMessage(content=_state_get(state, "original_query", ""))
     ]
 
     # ---- 4. Call LLM ----
@@ -278,7 +306,7 @@ def generation_node(state: AgentState) -> dict:
         sources=list(set(sources)),
         confidence=avg_confidence,
         no_context_found=False,
-        rewritten_query=state.rewritten_query,
+        rewritten_query=_state_get(state, "rewritten_query", ""),
     )
 
     # ---- 6. Append AI Message ----
@@ -326,13 +354,7 @@ def should_retry_retrieval(state: AgentState) -> str:
     # TODO: implement
     # Simple version: if no_context_found → "end", else → "generate"
     # Advanced version: track retry count, allow one retry with broader query
-    retry_count = getattr(state, "retry_count", 0)
-
-    if state.no_context_found and retry_count < 1:
-        state.retry_count = retry_count + 1
-        return "rewrite"
-
-    if state.no_context_found:
+    if _state_get(state, "no_context_found", False):
         return "end"
 
     return "generate"

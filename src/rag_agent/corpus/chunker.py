@@ -20,6 +20,22 @@ from rag_agent.config import Settings, get_settings
 from rag_agent.vectorstore.store import VectorStoreManager
 
 
+def _get_text_splitters():
+    """Import text splitters from the current package path with fallback."""
+    try:
+        from langchain_text_splitters import (
+            MarkdownHeaderTextSplitter,
+            RecursiveCharacterTextSplitter,
+        )
+        return MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+    except ImportError:
+        from langchain.text_splitter import (
+            MarkdownHeaderTextSplitter,
+            RecursiveCharacterTextSplitter,
+        )
+        return MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+
+
 class DocumentChunker:
     """
     Loads raw documents and splits them into DocumentChunk objects.
@@ -109,15 +125,23 @@ class DocumentChunker:
         else:
             raise ValueError(f"Unsupported file type: {suffix}")
         # 3. Apply metadata_overrides
-        metadata = self._infer_metadata(file_path, metadata_overrides)
+        source_name = None
+        if metadata_overrides:
+            source_name = metadata_overrides.get("source")
+
+        metadata_path = Path(source_name) if source_name else file_path
+        metadata = self._infer_metadata(metadata_path, metadata_overrides)
         chunks: list[DocumentChunk] = []
         # 4. Generate chunk_ids using VectorStoreManager.generate_chunk_id
         for rc in raw_chunks:
             text = rc["text"]
-            chunk_id = VectorStoreManager.generate_chunk_id(text)
+            chunk_id = VectorStoreManager.generate_chunk_id(
+                metadata.source,
+                text,
+            )
             chunk = DocumentChunk(
                 chunk_id=chunk_id,
-                text=text,
+                chunk_text=text,
                 metadata=metadata,
             )
 
@@ -196,7 +220,7 @@ class DocumentChunker:
         """
         # TODO: implement using langchain_community.document_loaders.PyPDFLoader
         from langchain_community.document_loaders import PyPDFLoader
-        from langchain.text_splitter import RecursiveCharacterTextSplitter
+        _, RecursiveCharacterTextSplitter = _get_text_splitters()
         loader = PyPDFLoader(str(file_path))
         pages = loader.load()
         
@@ -243,7 +267,7 @@ class DocumentChunker:
             Raw dicts with 'text' and 'header' keys.
         """
         # TODO: implement using langchain.text_splitter.MarkdownHeaderTextSplitter
-        from langchain.text_splitter import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+        MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter = _get_text_splitters()
 
         # read markdown file
         text = file_path.read_text(encoding="utf-8")
@@ -254,7 +278,7 @@ class DocumentChunker:
                     ("##", "h2"),
                     ("###", "h3"),]
 
-        header_splitter = MarkdownHeaderTextSplitter(headers)
+        header_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers)
 
         docs = header_splitter.split_text(text)
 
