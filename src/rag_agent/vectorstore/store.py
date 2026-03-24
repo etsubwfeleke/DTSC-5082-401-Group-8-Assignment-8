@@ -426,6 +426,7 @@ class VectorStoreManager:
         for doc, meta in zip(results["documents"], results["metadatas"]):
             chunks.append(
                 DocumentChunk(
+                    chunk_id=VectorStoreManager.generate_chunk_id(meta["source"], doc), 
                     chunk_text=doc,
                     metadata=ChunkMetadata.from_dict(meta)
                 )

@@ -319,7 +319,7 @@ def render_chat_interface(graph) -> None:
             final_response_obj = None
 
             # e. Execute graph.stream to get the "Wow Factor"
-            with st.spinner("Searching corpus..."):
+            with st.spinner("Searching corpus...:)"):
                 for event in graph.stream(inputs, config=config, stream_mode="values"):
                     # 2f. Extract the final_response from the graph state
                     if "final_response" in event and event["final_response"]:
