@@ -95,7 +95,7 @@ The diagram must show:
   - *k = 4 because increasing k can improve recall but may reduce answer precision.k as 4 will be sufficient for the language model.*
 
 - **Similarity threshold:**
-  - **0.7 (or whatever your settings.similarity_threshold is — usually 0.7–0.75). This prevents low-relevance results from being used, acting as a hallucination guard
+  - **0.3** - This is the core of our hallucination guard. Chunks scoring below 0.3 are excluded from LLM context. Calibrated through manual testing: on-topic queries scored 0.6-0.9, off-topic queries scored 0.05-0.15. Acts as the threshold for no-context detection in the retrieval node.
 
 - **Metadata filtering:**
   - *yes users can filter by topic or difficulty, which is done by metadata filtering, and is implemented using ChromaDB's WHERE clause during query execution.*
@@ -286,7 +286,6 @@ These are your Hour 3 interview talking points — be specific.
 | Cross-topic query ("Does activation functions improve vanishing gradient problem") | Multi-topic retrieval | Retrieved chunks from RNN.pdf covering both activation functions and gradient problem, synthesized answer across concepts | PASS |
 
 **Critical failures fixed before Hour 3:**
-**Critical failures fixed before Hour 3:**
 
 1. **ChromaDB Dimension Mismatch Error**
    - **Symptom:** `chromadb.errors.InvalidArgumentError: collection expects dim 3, got 384`
@@ -335,7 +334,6 @@ These are your Hour 3 interview talking points — be specific.
    - **Applied to:** All state reads in `query_rewrite_node`, `retrieval_node`, and `generation_node`
 
 
-**Known issues not fixed (and why):**
 **Known issues not fixed (and why):**
 
 1. **PDF Reference Sections Create Low-Quality Chunks**
