@@ -285,6 +285,10 @@ These are your Hour 3 interview talking points — be specific.
 | Empty query (submit blank input) | Graceful error, no crash | Streamlit chat_input validation prevented submission, no error thrown | PASS |
 | Cross-topic query ("Does activation functions improve vanishing gradient problem") | Multi-topic retrieval | Retrieved chunks from RNN.pdf covering both activation functions and gradient problem, synthesized answer across concepts | PASS |
 
+### Video Presentation:
+
+[Assignment 8 Video Presentation Walkthrough](https://myunt-my.sharepoint.com/:v:/r/personal/hodamalak_my_unt_edu/Documents/Microsoft%20Teams%20Chat%20Files/streamlit-app-2026-03-31-20-15-08.webm?csf=1&web=1&e=T6nhiq&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D )
+
 **Critical failures fixed before Hour 3:**
 
 1. **ChromaDB Dimension Mismatch Error**
