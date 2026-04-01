@@ -41,7 +41,6 @@ STRICT RULES — follow these without exception:
 TONE: Clear, technically precise, encouraging but rigorous. Like a fair
 senior engineer who wants the candidate to succeed but will not lower the bar.
 """
-
 # ---------------------------------------------------------------------------
 # Query Rewriting Prompt
 # ---------------------------------------------------------------------------
